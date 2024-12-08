@@ -8,3 +8,4 @@ playground*
 crawler/Jasper/.DS_Store
 __pycache__/
 data/chromadb/
+test.py
