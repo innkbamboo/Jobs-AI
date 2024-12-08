@@ -92,8 +92,8 @@ async def search_jobs(api: Linkedin, search_params: Dict) -> List[Dict]:
                          keywords=search_params['keywords'],
                          location_name=search_params['location_name'],
                          limit=search_params['limit'],
-                         listed_at=search_params['listed_at']
-                         #offset=search_params['offset'] 
+                         listed_at=search_params['listed_at'],
+                         offset=search_params['offset'] 
                          )
     return await asyncio.get_event_loop().run_in_executor(None, search_func)
 
@@ -173,12 +173,15 @@ async def process_job(job: Dict) -> Dict:
                                                             {}).get('companyResolutionResult', {}).get('url')
         
         # store JD into json
-        """
+        directory_name = f"JD_{config['search_params']['keywords'].replace(' ', '_')}"
+        os.makedirs(directory_name, exist_ok=True)
+
         description = job_details.get('description', {}).get('text', "N/A")
-        description_file = os.path.join("JD_test", f"{job_id}.json")
+        description_file = os.path.join(directory_name, f"{job_id}.json")
+
         with open(description_file, 'w') as f:
             json.dump({"description": description}, f, indent=4)
-        """
+    
         # Compile job information
         job_info = {
             "title": job.get('title', "N/A"),
@@ -214,20 +217,27 @@ async def main():
     try:
 
         all_jobs = []
-        
+        base_params = config['search_params'].copy()
         # Get initial job listings using first account
         print("\nSearching for jobs...")
-
-
-
-        jobs = await search_jobs(api1, config['search_params'])
-        print(f"Found {len(jobs)} jobs")
+        # pagination
+        for page in range(config['api_settings']['number_of_pages']):
+            offset = page * config['search_params']['limit']
+            base_params['offset'] = offset
+            print(f"\nSearching page {page + 1} (offset {offset})...")
+            # search jobs
+            jobs = await search_jobs(api1, base_params)
+            print(f"Found {len(jobs)} jobs on page {page + 1}")
         
         
-        for job in jobs:
-            result = await process_job(job)
-            if result is not None:
-                all_jobs.append(result)
+            for job in jobs:
+                result = await process_job(job)
+                if result is not None:
+                    all_jobs.append(result)
+
+            if len(jobs) < config['search_params']['limit']:
+                print(f"Found {len(jobs)} jobs which is less than limit {config['search_params']['limit']}, stopping search...")
+                break
         
         # Save to JSON file
 
